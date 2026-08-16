@@ -137,9 +137,14 @@ def process_audio(raw_mp3: str, out_mp3: str, start: float = 0.0, end: float = N
 
 def process_word_audio(raw_mp3: str, out_mp3: str):
     """單字語音前後去除靜音並標準化音量"""
+    # stop_duration 一定要明顯大於單字內部塞音（p/b/t/d/k/g、ck 等）的閉塞停頓
+    # （實測約 40~100ms），否則 stop_periods=1 會把這種詞中停頓誤判成單字唸完、
+    # 直接把後面的音節切掉——例如 chicken/spoon/apple/purple/duck 都曾經因為
+    # stop_duration=0.05 被攔腰截斷，只剩前半段。真正的尾端靜音（TTS 唸完一個
+    # 單字後的停頓）實測約 1 秒以上，0.3 對兩者都留有充足安全邊界。
     filters = [
         "silenceremove=start_periods=1:start_duration=0.01:start_threshold=-50dB",
-        "silenceremove=stop_periods=1:stop_duration=0.05:stop_threshold=-50dB",
+        "silenceremove=stop_periods=1:stop_duration=0.3:stop_threshold=-50dB",
         "loudnorm=I=-16:TP=-1.5:LRA=11"
     ]
     cmd = [
