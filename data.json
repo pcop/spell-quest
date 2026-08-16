@@ -100,7 +100,7 @@
     { "id": "other_sheep",      "word": "sheep",      "theme": "other", "emoji": "🐑", "zh": "綿羊", "phonics": { "chunks": ["sh", "ee", "p"], "silent": [] } },
     { "id": "other_duck",       "word": "duck",       "theme": "other", "emoji": "🦆", "zh": "鴨子", "phonics": { "chunks": ["d", "u", "ck"], "silent": [] } },
     { "id": "other_climb",      "word": "climb",      "theme": "other", "emoji": "🧗", "zh": "攀爬", "phonics": { "chunks": ["c", "l", "i", "m", "b"], "silent": [4] } },
-    { "id": "other_fly",        "word": "fly",        "theme": "other", "emoji": "🐦", "zh": "飛", "phonics": { "chunks": ["f", "l", "y"], "silent": [] } },
+    { "id": "other_fly",        "word": "fly",        "theme": "other", "emoji": "🐦", "zh": "飛", "phonics": { "chunks": ["f", "l", "y"], "silent": [], "audioOverrides": { "2": "y-long-i" } } },
     { "id": "other_swim",       "word": "swim",       "theme": "other", "emoji": "🏊", "zh": "游泳", "phonics": { "chunks": ["s", "w", "i", "m"], "silent": [] } },
     { "id": "other_crawl",      "word": "crawl",      "theme": "other", "emoji": "🐛", "zh": "爬行", "phonics": { "chunks": ["c", "r", "aw", "l"], "silent": [] } }
   ],

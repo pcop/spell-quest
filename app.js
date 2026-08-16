@@ -705,14 +705,23 @@
     preloadedAudioMap[url] = audio;
   }
 
+  // 同一個 chunk 拼法在不同單字裡唸法不同時（例如字尾 y 在 fly 唸長 i、在 cherry 唸長 e），
+  // phonics.audioOverrides 可以指定某個 chunk 索引改查另一個「虛擬 chunk id」的音檔，而不
+  // 影響 chunks 陣列本身的拼字顯示／串接。key 是 chunks 的索引（字串或數字皆可），value 是
+  // phonics-audio/ 底下實際要播放的檔名（不含副檔名）。
+  function phonicsChunkAudioName(phonics, index) {
+    var override = phonics.audioOverrides && phonics.audioOverrides[index];
+    return override || phonics.chunks[index];
+  }
+
   function preloadEntryAudio(entry) {
     if (!entry) return;
     if (entry.word) {
       preloadAudio('words-audio/' + encodeURIComponent(entry.word.toLowerCase()) + '.mp3');
     }
     if (entry.phonics && entry.phonics.chunks) {
-      entry.phonics.chunks.forEach(function (chunk) {
-        preloadAudio('phonics-audio/' + encodeURIComponent(chunk) + '.mp3');
+      entry.phonics.chunks.forEach(function (chunk, i) {
+        preloadAudio('phonics-audio/' + encodeURIComponent(phonicsChunkAudioName(entry.phonics, i)) + '.mp3');
       });
     }
   }
@@ -790,7 +799,7 @@
   // 當下最新的一次，不是的話就直接停止——這是 Audio 版本的「取消前一次播放」機制。
   var phonicsPlaybackId = 0;
   var phonicsAudioEl = null;
-  var phonicsAudioStepHandler = null;
+  var phonicsAudioHandlers = null; // { onEnded, onError } — 目前掛在 phonicsAudioEl 上的那一組監聽器
 
   // 依序播放單字的自然發音拆解（高品質神經網路真人發音），最後再播放完整單字真人發音
   function speakPhonics(entry) {
@@ -803,37 +812,75 @@
     }
     var myPlaybackId = ++phonicsPlaybackId;
     if (!phonicsAudioEl) phonicsAudioEl = new Audio();
-    if (phonicsAudioStepHandler) {
-      phonicsAudioEl.removeEventListener('ended', phonicsAudioStepHandler);
-      phonicsAudioEl.removeEventListener('error', phonicsAudioStepHandler);
-      phonicsAudioStepHandler = null;
+    if (phonicsAudioHandlers) {
+      phonicsAudioEl.removeEventListener('ended', phonicsAudioHandlers.onEnded);
+      phonicsAudioEl.removeEventListener('error', phonicsAudioHandlers.onError);
+      phonicsAudioHandlers = null;
     }
-    var chunks = phonics.chunks.filter(function (chunk, i) {
-      return !(phonics.silent && phonics.silent.indexOf(i) !== -1);
+    // 保留原始索引（而不是只留文字），這樣才能用索引去查 audioOverrides——
+    // 濾掉 silent chunk 後陣列位置會跟原始 phonics.chunks 錯位，純文字陣列做不到這件事。
+    var chunkIndices = [];
+    phonics.chunks.forEach(function (chunk, i) {
+      if (!(phonics.silent && phonics.silent.indexOf(i) !== -1)) chunkIndices.push(i);
     });
     var idx = 0;
     var rate = progress.settings.speechRate || 1.0;
     phonicsAudioEl.playbackRate = rate;
 
+    // 該 chunk 的音檔載入失敗時，退回瀏覽器 SpeechSynthesis 唸出這個 chunk 的文字，
+    // 讓孩子至少聽到一個聲音，而不是整段靜音跳過（跟 speakWord() 的 fallback 邏輯對稱）。
+    function fallbackChunkToTTS(chunkText, next) {
+      if (!('speechSynthesis' in window)) { next(); return; }
+      try {
+        speechSynthesis.cancel();
+        var utter = new SpeechSynthesisUtterance(chunkText);
+        if (cachedEnglishVoice) {
+          utter.voice = cachedEnglishVoice;
+          utter.lang = cachedEnglishVoice.lang;
+        }
+        utter.rate = rate;
+        utter.onend = next;
+        utter.onerror = next;
+        speechSynthesis.speak(utter);
+      } catch (err) {
+        next();
+      }
+    }
+
     function playNext() {
       if (myPlaybackId !== phonicsPlaybackId) return;
-      if (idx >= chunks.length) { speakWord(entry.word); return; }
-      var advanced = false;
-      var step = function () {
-        if (advanced) return;
-        advanced = true;
-        phonicsAudioEl.removeEventListener('ended', step);
-        phonicsAudioEl.removeEventListener('error', step);
-        if (phonicsAudioStepHandler === step) phonicsAudioStepHandler = null;
+      if (idx >= chunkIndices.length) { speakWord(entry.word); return; }
+      var originalIndex = chunkIndices[idx];
+      var chunkText = phonics.chunks[originalIndex]; // fallback TTS 要唸的文字，永遠是真正的拼字
+      var audioName = phonicsChunkAudioName(phonics, originalIndex); // 音檔查找用的檔名，可能被 override
+      idx++;
+      var settled = false;
+      var cleanup = function () {
+        phonicsAudioEl.removeEventListener('ended', onEnded);
+        phonicsAudioEl.removeEventListener('error', onError);
+        if (phonicsAudioHandlers && phonicsAudioHandlers.onEnded === onEnded) phonicsAudioHandlers = null;
+      };
+      var onEnded = function () {
+        if (settled) return;
+        settled = true;
+        cleanup();
         playNext();
       };
-      phonicsAudioStepHandler = step;
-      phonicsAudioEl.src = 'phonics-audio/' + encodeURIComponent(chunks[idx]) + '.mp3';
+      var onError = function () {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fallbackChunkToTTS(chunkText, function () {
+          if (myPlaybackId !== phonicsPlaybackId) return;
+          playNext();
+        });
+      };
+      phonicsAudioHandlers = { onEnded: onEnded, onError: onError };
+      phonicsAudioEl.src = 'phonics-audio/' + encodeURIComponent(audioName) + '.mp3';
       phonicsAudioEl.playbackRate = rate;
-      idx++;
-      phonicsAudioEl.addEventListener('ended', step);
-      phonicsAudioEl.addEventListener('error', step);
-      phonicsAudioEl.play().catch(step);
+      phonicsAudioEl.addEventListener('ended', onEnded);
+      phonicsAudioEl.addEventListener('error', onError);
+      phonicsAudioEl.play().catch(onError);
     }
     playNext();
   }

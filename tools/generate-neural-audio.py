@@ -34,6 +34,12 @@ CHUNK_CONFIG = {
     "u": {"word": "up", "start": 0.0, "end": 0.30},
     "y": {"word": "happy", "start": 0.30, "end": 0.65},  # /i/
 
+    # 字尾 y 的另一種讀法：單音節字（fly/sky/cry...）唸長 i /aɪ/，跟上面 "y"（多音節字
+    # 字尾唸長 e /i/，例如 cherry/happy）不同音。chunk 文字查找是 by-text 的，"y" 這個
+    # 拼法本身已經被 cherry 那組用掉了，所以另外開一個不會撞名的虛擬 chunk id，只透過
+    # data.json 裡個別單字的 phonics.audioOverrides 指定使用（見 fly 的資料項）。
+    "y-long-i": {"word": "sky", "start": 0.18, "end": 0.55},  # /aɪ/
+
     # 母音組合
     "ee": {"word": "see", "start": 0.10, "end": 0.50},
     "ea": {"word": "eat", "start": 0.0, "end": 0.40},
@@ -106,8 +112,15 @@ def process_audio(raw_mp3: str, out_mp3: str, start: float = 0.0, end: float = N
         filters.append(f"atrim=start={start}")
     if end is not None:
         filters.append(f"atrim=end={end}")
+    # atrim 不會重設時間戳，裁切後的片段仍帶著原始（裁切前）的 PTS；下面的 afade
+    # 是用「片段自己的時間」在算淡出視窗（st=0.2 代表片段開始後 0.2 秒），如果不先
+    # asetpts 重設成 0，st=0.2 實際比對的是原始未裁切的絕對時間。當某個 chunk 的
+    # start 裁切值 ≥ 0.24（= st + d，淡出視窗結束點）時，淡出視窗會落在保留內容的
+    # 「開始之前」，整段訊號因此被淡成完全靜音——這是實際發生過的 bug：ck/ll/nk/x/y
+    # 這 5 個 chunk（start 都在 0.25~0.30）曾經因此變成完全無聲的音檔。
+    filters.append("asetpts=PTS-STARTPTS")
     filters.append("silenceremove=stop_periods=1:stop_duration=0.03:stop_threshold=-45dB")
-    
+
     # 微量淡出避免切斷音爆聲 (click sound)
     filters.append("afade=t=in:st=0:d=0.01")
     filters.append("afade=t=out:st=0.2:d=0.04")

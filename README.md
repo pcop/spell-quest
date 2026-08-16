@@ -43,9 +43,11 @@ python3 -m http.server 8000
 ├── app.js       # 遊戲邏輯：資料載入、畫面切換、出題、判分、語音、進度儲存、自然發音拆解＋拼讀練習
 ├── three-fx.js  # 3D 特效層（ES module）：拼字關卡的答對/過關特效都靠它，是硬性需求；
 │                # 失敗時只會鎖住拼字關卡，字卡瀏覽/拼讀練習/進度頁不受影響
-├── phonics-audio/               # 自然發音音素音檔（53 個 .mp3，檔名＝chunk 文字，例如 th.mp3）
+├── words-audio/                  # 單字朗讀音檔（89 個 .mp3，檔名＝單字文字，例如 cat.mp3）
+├── phonics-audio/                # 自然發音音素音檔（53 個 .mp3，檔名＝chunk 文字，例如 th.mp3）
 └── tools/
-    └── generate-phonics-audio.sh  # 產生 phonics-audio/ 的腳本，新增字用到新 chunk 時重跑這支
+    ├── generate-neural-audio.py    # 目前使用中：用 Edge-TTS（真人神經語音）產生 words-audio/ 與 phonics-audio/，新增字用到新 chunk 時重跑這支
+    └── generate-phonics-audio.sh   # 已淘汰的舊版腳本（espeak-ng 機械合成語音），不要再用來產生新的 phonics-audio 音檔，音色跟現有檔案不搭
 ```
 
 沒有建置工具；`app.js` 是單一 IIFE，用原生 DOM API 操作畫面，沒有外部依賴。`three-fx.js` 是唯一的例外——透過 `index.html` 的 `<script type="importmap">` 從 CDN（jsdelivr）載入 three.js 的 ES module 版本。**three.js 是拼字關卡的硬性需求，不是裝飾性強化**：CDN 連不上或瀏覽器不支援 WebGL 時，主選單「開始遊戲」按鈕會被鎖住、拼字關卡進不去；但字卡瀏覽、拼讀練習、進度頁（含貼紙簿）完全不依賴 three.js，照樣完整可用。
@@ -68,7 +70,8 @@ python3 -m http.server 8000
 - `emoji`：用來當圖片提示的 emoji；若找不到合適的 emoji（例如顏色類單字），改用 `"emoji": null` 搭配 `"swatch": "#hex色碼"` 顯示色塊
 - `zh`（必填）：這個單字的中文意思，例如 `"turtle"` 對應 `"烏龜"`。拼字關卡的題目在「圖片」提示模式下會把它顯示在圖片/色塊下方，用來補強 emoji 意思不夠精準的情況（尤其是動詞或抽象概念，emoji 常常畫不清楚，例如 `bake`、`crawl`）；純聽音模式不會顯示
 - `syllables`（選填）：多音節單字的音節拆分，例如 `"syllables": ["ap", "ple"]`；陣列串接後必須完全等於 `word`。只有多音節單字需要加這個欄位，單音節單字（`cat`、`red`⋯）不用加，答案槽位不會顯示分組
-- `phonics`（必填）：自然發音的字母/字母組合拆解，例如 `"phonics": { "chunks": ["c", "a", "t"], "silent": [] }`；`chunks` 陣列串接後必須完全等於 `word`，`silent` 是不發音字母（例如 silent e）在 `chunks` 裡的索引（0 起算）。拆解規則：子音群（ch/sh/th/ck/wh/nk）、母音團（ee/ea/oo/ow/ou/ay/ue/eigh/oa/aw）、r controlled 母音（ar/er/ir/or/ur/air/ear/our/oor）、重複字母（ll/rr/pp）各算一個 chunk；子音團（blend，例如 br/pl/st）維持拆成個別字母，因為它們是兩個音快速連在一起、不是一個音。**新增單字如果用到現有 53 個 chunk 之外的新組合，要在 `tools/generate-phonics-audio.sh` 的對照表補一行、重新執行這支腳本產生對應的 `phonics-audio/<chunk>.mp3`**——`phonics.chunks` 只是資料，實際播放的音檔要另外生成，不會自動生效。同一個 chunk 文字只會對應一種發音，如果同樣的拼法在不同單字裡唸法不同（例如字尾 `y` 在單音節字唸長 i、多音節字唸長 e），只能取一個代表音，是已知限制不是 bug（跟 `oo`／`ear` 那幾個 chunk 的取捨一樣）
+- `phonics`（必填）：自然發音的字母/字母組合拆解，例如 `"phonics": { "chunks": ["c", "a", "t"], "silent": [] }`；`chunks` 陣列串接後必須完全等於 `word`，`silent` 是不發音字母（例如 silent e）在 `chunks` 裡的索引（0 起算）。拆解規則：子音群（ch/sh/th/ck/wh/nk）、母音團（ee/ea/oo/ow/ou/ay/ue/eigh/oa/aw）、r controlled 母音（ar/er/ir/or/ur/air/ear/our/oor）、重複字母（ll/rr/pp）各算一個 chunk；子音團（blend，例如 br/pl/st）維持拆成個別字母，因為它們是兩個音快速連在一起、不是一個音。**新增單字如果用到現有 53 個 chunk 之外的新組合，要在 `tools/generate-neural-audio.py` 的 `CHUNK_CONFIG` 對照表補一筆（指定一個帶有目標音的載體單字，加上裁切用的 `start`／`end` 秒數），重新執行這支腳本產生對應的 `phonics-audio/<chunk>.mp3`**——`phonics.chunks` 只是資料，實際播放的音檔要另外生成，不會自動生效。舊版的 `tools/generate-phonics-audio.sh`（espeak-ng）已經淘汰，不要再用它產生新 chunk，否則新音檔會是機械合成音，跟現有神經語音音檔混在一起會很不協調。同一個 chunk 文字預設只會對應一種發音，如果同樣的拼法在不同單字裡唸法不同（例如 `oo` 在 `book`／`foot` 是短音、`spoon`／`tooth` 是長音；`ear` 在 `ear`／`pear`／`heart` 三個字發音完全不同），通常只能取一個代表音，是已知限制不是 bug，細節見下方「已知待驗證項目」。
+- `phonics.audioOverrides`（選填）：`{ "<chunks 索引>": "<虛擬 chunk id>" }`，給「落差大到值得特別處理」的個案用——例如 `fly` 字尾的 `y` 應該唸長 i（跟 `sky`／`cry` 一樣），但共用的 `y` chunk 音檔是唸長 e（取自 `cherry`／`happy` 這種較常見的多音節字尾 y），兩者音差明顯。加這個欄位可以讓某個 chunk 索引改去查另一個「虛擬 chunk id」的音檔，不影響 `chunks` 陣列本身的拼字顯示／串接規則；虛擬 chunk id 要先在 `tools/generate-neural-audio.py` 的 `CHUNK_CONFIG` 裡登記一個帶目標音的載體單字並產生對應音檔（例如 `y-long-i` 取自 `sky`），實際查找邏輯見 `app.js` 的 `phonicsChunkAudioName()`。`fly` 的 `other_fly` 項目就是這樣修的：`"phonics": { "chunks": ["f","l","y"], "silent": [], "audioOverrides": { "2": "y-long-i" } }`
 
 新增主題則在 `themes` 陣列加一筆 `{ id, name, icon, color }`；這個主題會自動套用全站共用的長度分級規則（`difficultyTiers`：初級/中級/高級）。
 
@@ -130,6 +133,16 @@ python3 -m http.server 8000
   - **智慧預載入（Preload）**：切換關卡、字卡與題目時自動在背景預載入所需音訊，達到點擊即時發音、零延遲的極致體驗。
   - **全裝置相容**：無論使用電腦、手機、平板或 Linux，發音效果 100% 完全一致，不再受各裝置系統語音庫缺失影響。
 
+## 已知待驗證項目
+
+目前只做過語法檢查（`node --check`）、資料結構一致性檢查（`syllables`／`phonics.chunks` 陣列串接後是否等於原單字、`zh` 欄位是否每個字都有填）、以及音檔層級的自動化檢查（`words-audio`／`phonics-audio` 是否跟 `data.json` 完全對應、有沒有檔案缺漏、用 `ffmpeg volumedetect` 掃過全部 phonics-audio 音檔排除完全靜音的檔案），尚未在真實瀏覽器中完整跑過一輪：語音是否確實出聲、觸控拖曳落位是否準確、提示格子的視覺呈現與各動畫效果、3D 特效的畫面與點擊穿透是否如預期。以下條列的都需要靠你實際玩過一輪、耳朵聽過才能確認，不是我這邊能自動驗證的範圍。
+
+**自然發音（phonics）逐音播放的已知限制**：一個 chunk 拼法（例如 `oo`）預設只會對應到一份預先生成的音檔，如果同樣拼法在不同單字裡唸法不同，只能取一個代表音——這是 chunk-by-text 架構的先天取捨，不是 bug：
+- `oo`：`book`／`foot` 是短音，`spoon`／`tooth` 是長音，目前 `oo` chunk 音檔取自 `moon`（長音），`book`／`foot` 這兩個字聽起來會不夠準
+- `ear`：`ear`／`pear`／`heart` 三個字裡發音完全不同，目前 `ear` chunk 音檔取自 `ear` 這個字本身，`pear`／`heart` 聽起來會不夠準
+- `fly` 曾經有同樣的問題（字尾 `y` 應該唸長 i，但共用的 `y` chunk 是唸長 e），落差比 `oo`／`ear` 明顯，已經用新增的 `phonics.audioOverrides` 機制修掉（`other_fly` 現在的 `y` 改查 `phonics-audio/y-long-i.mp3`，取自 `sky`，見上方「新增/修改單字內容」的 `phonics` 說明）——這個修法還沒有實機聽過確認截取的音準不準，且 `y-long-i.mp3` 是純用能量分析（`ffmpeg` 低通濾波抓子音／母音能量交界）估算裁切邊界產生的，沒辦法用耳朵確認裁切點抓得準不準，需要實機確認
+- **重要修復記錄**：`ck`／`ll`／`nk`／`x`／`y` 這 5 個 phonics chunk 音檔曾經是**完全靜音**（不是發音不準，是真的沒有聲音），影響 `black`／`chicken`／`clock`／`duck`／`sock`／`ball`／`pink`／`box`／`fox`／`six`／`cherry`／`fly` 共 12 個單字的逐音拼讀播放。根因是 `tools/generate-neural-audio.py` 的 `process_audio()` 濾鏡鏈裡 `atrim=start=...` 沒有重設時間戳，導致後面的淡出濾鏡 `afade=t=out:st=0.2:d=0.04` 是用裁切前的絕對時間在算淡出視窗——只要某個 chunk 的 `start` 裁切值 ≥ 0.24 秒，淡出視窗會落在保留內容「開始之前」，整段就被淡成靜音。已經在濾鏡鏈裡補上 `asetpts=PTS-STARTPTS` 修正並重新產生這 5 個音檔；已用 `ffmpeg volumedetect` 掃過全部 53＋1 個 phonics-audio 音檔確認沒有其他殘留的靜音檔，但實際聽起來音準是否正常（不只是「有沒有聲音」）還是需要實機確認。**未來新增 chunk 時，光靠腳本成功產生非空 mp3 檔不代表音檔正常，建議至少用 `ffmpeg -i <file> -af volumedetect -f null -` 確認 `mean_volume` 不是 `-91.0 dB`（完全靜音的訊號）。**
+
 **這次新加的「三種 3D 過關模型＋開寶箱貼紙系統＋硬性門檻」特別需要注意，改動範圍很大，幾乎每一項都沒有實機確認過**：
 - **模型的視覺呈現**：獎盃／禮物盒／寶箱三個手刻幾何模型實際看起來像不像對應的東西（尺寸比例、鏡頭角度、光影是否清楚），這是完全用數學堆出來的形狀，沒有截圖驗證過
 - **開寶箱動畫的時序與方向**：蓋子掀開的旋轉方向是否真的是「往上往後掀開」而不是穿模或轉錯方向、掀開瞬間彈出的貼紙彈窗時機是否自然、獎盃/禮物盒的旋轉展示是否流暢不卡頓
@@ -146,8 +159,8 @@ python3 -m http.server 8000
 - **9 個字母格＋拼盤的版面**：「暑假複習1」裡最長的字是 `chicken`（7 字母）+ `distractorCount: 2`，等於一次要排出 9 個答案槽位／拼盤字母，比原本任何一關都多，小螢幕上會不會擠成三行、字母格會不會小到不好點，需要實機確認（版面本身是 `flex-wrap`，理論上會自動換行，但沒有實際看過）
 - **中文提示 `#prompt-zh` 的排版**：跟圖片/色塊、發音按鈕疊在同一個 `.prompt-area` 直向排列，在圖片較大或螢幕較窄時中文字會不會被擠壓、跟下面的答案槽位距離會不會太近，需要實機確認
 - **「其他」主題的 emoji 選字**：`bake`（🧁）、`tape`（📼）、`cave`（🕳️）、`cape`（🦸）、`rake`（🍂）這幾個字本來就沒有精準對應的 emoji，是刻意搭配中文提示一起用的（emoji 給氛圍、中文給確切答案），但實際看起來會不會太抽象、孩子光看圖猜不出來要等中文字才懂，需要實機確認觀感是否可接受
-- **`fly` 的 phonics**：`chunks: ["f","l","y"]` 沿用專案既有的 `y` chunk（唸長 e 音，取自 `cherry` 那種字尾 y），但 `fly` 是單音節字，字尾 `y` 正確應該唸長 i 音（跟 `sky`／`cry` 一樣）——這是既有 chunk-by-text 架構的已知限制（見上方「新增/修改單字內容」的 `phonics` 說明），不是這次新增的 bug，但這個字的落差比 `oo`/`ear` 那幾個明顯，建議實際聽過 `other_fly` 的逐音播放，評估這個落差是否需要另外處理
-- **新增的 `oa`／`aw` 兩個 chunk**：只做過跟其他 chunk 一樣的結構性驗證（`espeak-ng --ipa` 交叉核對 `[['oU]]`／`[['O:]]` 分別對應 `goat`／`crawl` 的目標音素），沒有實際聽過 `phonics-audio/oa.mp3`／`aw.mp3` 播出來是否清楚自然
+- **`fly` 的 phonics**：已修（見上方「已知待驗證項目」開頭的「自然發音逐音播放的已知限制」段落），這裡不重複列出
+- **`oa`／`aw` 兩個 chunk**：現在跟其他 chunk 一樣改用 `tools/generate-neural-audio.py`（Edge-TTS 真人語音，分別取自 `oak`／`saw`）生成，不再是舊版 espeak-ng 共振峰合成；沒有實際聽過 `phonics-audio/oa.mp3`／`aw.mp3` 播出來是否清楚自然，需要實機確認
 
 **這次「答對後手動切下一題」＋「字卡方向鍵」也還沒有實機驗證過**：
 - **「▶️ 下一題」按鈕的視覺呈現與版面**：按鈕加在 `feedback-message` 下方、用 `fadeIn` 淡入，會不會跟星星蹦出、吉祥物動畫、3D 粒子特效同時搶畫面注意力，或是位置太低（尤其手機直向、鍵盤/工具列擋住畫面下緣時）孩子看不到要往下滑才按得到，需要實機確認
