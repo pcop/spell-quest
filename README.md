@@ -46,8 +46,7 @@ python3 -m http.server 8000
 ├── words-audio/                  # 單字朗讀音檔（89 個 .mp3，檔名＝單字文字，例如 cat.mp3）
 ├── phonics-audio/                # 自然發音音素音檔（53 個 .mp3，檔名＝chunk 文字，例如 th.mp3）
 └── tools/
-    ├── generate-neural-audio.py    # 目前使用中：用 Edge-TTS（真人神經語音）產生 words-audio/ 與 phonics-audio/，新增字用到新 chunk 時重跑這支
-    └── generate-phonics-audio.sh   # 已淘汰的舊版腳本（espeak-ng 機械合成語音），不要再用來產生新的 phonics-audio 音檔，音色跟現有檔案不搭
+    └── generate-neural-audio.py    # 目前使用中：用 Edge-TTS（真人神經語音）產生 words-audio/ 與 phonics-audio/，新增字用到新 chunk 時重跑這支
 ```
 
 沒有建置工具；`app.js` 是單一 IIFE，用原生 DOM API 操作畫面，沒有外部依賴。`three-fx.js` 是唯一的例外——透過 `index.html` 的 `<script type="importmap">` 從 CDN（jsdelivr）載入 three.js 的 ES module 版本。**three.js 是拼字關卡的硬性需求，不是裝飾性強化**：CDN 連不上或瀏覽器不支援 WebGL 時，主選單「開始遊戲」按鈕會被鎖住、拼字關卡進不去；但字卡瀏覽、拼讀練習、進度頁（含貼紙簿）完全不依賴 three.js，照樣完整可用。
@@ -70,7 +69,7 @@ python3 -m http.server 8000
 - `emoji`：用來當圖片提示的 emoji；若找不到合適的 emoji（例如顏色類單字），改用 `"emoji": null` 搭配 `"swatch": "#hex色碼"` 顯示色塊
 - `zh`（必填）：這個單字的中文意思，例如 `"turtle"` 對應 `"烏龜"`。拼字關卡的題目在「圖片」提示模式下會把它顯示在圖片/色塊下方，用來補強 emoji 意思不夠精準的情況（尤其是動詞或抽象概念，emoji 常常畫不清楚，例如 `bake`、`crawl`）；純聽音模式不會顯示
 - `syllables`（選填）：多音節單字的音節拆分，例如 `"syllables": ["ap", "ple"]`；陣列串接後必須完全等於 `word`。只有多音節單字需要加這個欄位，單音節單字（`cat`、`red`⋯）不用加，答案槽位不會顯示分組
-- `phonics`（必填）：自然發音的字母/字母組合拆解，例如 `"phonics": { "chunks": ["c", "a", "t"], "silent": [] }`；`chunks` 陣列串接後必須完全等於 `word`，`silent` 是不發音字母（例如 silent e）在 `chunks` 裡的索引（0 起算）。拆解規則：子音群（ch/sh/th/ck/wh/nk）、母音團（ee/ea/oo/ow/ou/ay/ue/eigh/oa/aw）、r controlled 母音（ar/er/ir/or/ur/air/ear/our/oor）、重複字母（ll/rr/pp）各算一個 chunk；子音團（blend，例如 br/pl/st）維持拆成個別字母，因為它們是兩個音快速連在一起、不是一個音。**新增單字如果用到現有 53 個 chunk 之外的新組合，要在 `tools/generate-neural-audio.py` 的 `CHUNK_CONFIG` 對照表補一筆（指定一個帶有目標音的載體單字，加上裁切用的 `start`／`end` 秒數），重新執行這支腳本產生對應的 `phonics-audio/<chunk>.mp3`**——`phonics.chunks` 只是資料，實際播放的音檔要另外生成，不會自動生效。舊版的 `tools/generate-phonics-audio.sh`（espeak-ng）已經淘汰，不要再用它產生新 chunk，否則新音檔會是機械合成音，跟現有神經語音音檔混在一起會很不協調。同一個 chunk 文字預設只會對應一種發音，如果同樣的拼法在不同單字裡唸法不同（例如 `oo` 在 `book`／`foot` 是短音、`spoon`／`tooth` 是長音；`ear` 在 `ear`／`pear`／`heart` 三個字發音完全不同），通常只能取一個代表音，是已知限制不是 bug，細節見下方「已知待驗證項目」。
+- `phonics`（必填）：自然發音的字母/字母組合拆解，例如 `"phonics": { "chunks": ["c", "a", "t"], "silent": [] }`；`chunks` 陣列串接後必須完全等於 `word`，`silent` 是不發音字母（例如 silent e）在 `chunks` 裡的索引（0 起算）。拆解規則：子音群（ch/sh/th/ck/wh/nk）、母音團（ee/ea/oo/ow/ou/ay/ue/eigh/oa/aw）、r controlled 母音（ar/er/ir/or/ur/air/ear/our/oor）、重複字母（ll/rr/pp）各算一個 chunk；子音團（blend，例如 br/pl/st）維持拆成個別字母，因為它們是兩個音快速連在一起、不是一個音。**新增單字如果用到現有 53 個 chunk 之外的新組合，要在 `tools/generate-neural-audio.py` 的 `CHUNK_CONFIG` 對照表補一筆（指定一個帶有目標音的載體單字，加上裁切用的 `start`／`end` 秒數），重新執行這支腳本產生對應的 `phonics-audio/<chunk>.mp3`**——`phonics.chunks` 只是資料，實際播放的音檔要另外生成，不會自動生效。同一個 chunk 文字預設只會對應一種發音，如果同樣的拼法在不同單字裡唸法不同（例如 `oo` 在 `book`／`foot` 是短音、`spoon`／`tooth` 是長音；`ear` 在 `ear`／`pear`／`heart` 三個字發音完全不同），通常只能取一個代表音，是已知限制不是 bug，細節見下方「已知待驗證項目」。
 - `phonics.audioOverrides`（選填）：`{ "<chunks 索引>": "<虛擬 chunk id>" }`，給「落差大到值得特別處理」的個案用——例如 `fly` 字尾的 `y` 應該唸長 i（跟 `sky`／`cry` 一樣），但共用的 `y` chunk 音檔是唸長 e（取自 `cherry`／`happy` 這種較常見的多音節字尾 y），兩者音差明顯。加這個欄位可以讓某個 chunk 索引改去查另一個「虛擬 chunk id」的音檔，不影響 `chunks` 陣列本身的拼字顯示／串接規則；虛擬 chunk id 要先在 `tools/generate-neural-audio.py` 的 `CHUNK_CONFIG` 裡登記一個帶目標音的載體單字並產生對應音檔（例如 `y-long-i` 取自 `sky`），實際查找邏輯見 `app.js` 的 `phonicsChunkAudioName()`。`fly` 的 `other_fly` 項目就是這樣修的：`"phonics": { "chunks": ["f","l","y"], "silent": [], "audioOverrides": { "2": "y-long-i" } }`
 
 新增主題則在 `themes` 陣列加一筆 `{ id, name, icon, color }`；這個主題會自動套用全站共用的長度分級規則（`difficultyTiers`：初級/中級/高級）。
