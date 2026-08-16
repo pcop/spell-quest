@@ -32,7 +32,7 @@ CHUNK_CONFIG = {
     "i": {"word": "it", "start": 0.0, "end": 0.30},
     "o": {"word": "ox", "start": 0.0, "end": 0.35},
     "u": {"word": "up", "start": 0.0, "end": 0.30},
-    "y": {"word": "happy", "start": 0.30, "end": 0.65},  # /i/
+    "y": {"word": "happy", "start": 0.28, "end": 0.50},  # /i/
 
     # 字尾 y 的另一種讀法：單音節字（fly/sky/cry...）唸長 i /aɪ/，跟上面 "y"（多音節字
     # 字尾唸長 e /i/，例如 cherry/happy）不同音。chunk 文字查找是 by-text 的，"y" 這個
@@ -80,17 +80,17 @@ CHUNK_CONFIG = {
     "t": {"word": "ten", "start": 0.0, "end": 0.22},
     "v": {"word": "van", "start": 0.0, "end": 0.35},
     "w": {"word": "win", "start": 0.0, "end": 0.28},
-    "x": {"word": "box", "start": 0.28, "end": 0.65},
+    "x": {"word": "box", "start": 0.35, "end": 0.57},
     "z": {"word": "zoo", "start": 0.0, "end": 0.35},
 
     # 雙字母子音 & 疊字
     "ch": {"word": "chair", "start": 0.0, "end": 0.30},
     "sh": {"word": "sheep", "start": 0.0, "end": 0.35},
     "th": {"word": "think", "start": 0.0, "end": 0.30},
-    "ck": {"word": "duck", "start": 0.25, "end": 0.55},
+    "ck": {"word": "duck", "start": 0.39, "end": 0.49},
     "wh": {"word": "white", "start": 0.0, "end": 0.30},
-    "nk": {"word": "pink", "start": 0.25, "end": 0.60},
-    "ll": {"word": "ball", "start": 0.25, "end": 0.60},
+    "nk": {"word": "pink", "start": 0.41, "end": 0.51},
+    "ll": {"word": "ball", "start": 0.23, "end": 0.43},
     "rr": {"word": "red", "start": 0.0, "end": 0.30},
     "pp": {"word": "pen", "start": 0.0, "end": 0.22},
     "eye": {"word": "eye", "start": 0.0, "end": 0.50},
@@ -168,7 +168,7 @@ async def main():
             raw_tmp = os.path.join(tmpdir, f"word_{word}_raw.mp3")
             out_file = os.path.join(WORDS_DIR, f"{word}.mp3")
             try:
-                await generate_tts(word, raw_tmp, rate="-5%")
+                await generate_tts(word, raw_tmp, rate="-20%")
                 process_word_audio(raw_tmp, out_file)
                 print(f"  [{idx}/{len(words)}] ✅ {word}.mp3")
             except Exception as e:
@@ -181,7 +181,7 @@ async def main():
             raw_tmp = os.path.join(tmpdir, f"chunk_{chunk}_raw.mp3")
             out_file = os.path.join(PHONICS_DIR, f"{chunk}.mp3")
             try:
-                await generate_tts(cfg["word"], raw_tmp, rate="-5%")
+                await generate_tts(cfg["word"], raw_tmp, rate="-20%")
                 process_audio(raw_tmp, out_file, start=cfg["start"], end=cfg["end"])
                 print(f"  [{idx}/{len(CHUNK_CONFIG)}] ✅ {chunk}.mp3 (源自: {cfg['word']})")
             except Exception as e:
