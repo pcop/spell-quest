@@ -347,12 +347,35 @@ body {
   margin-top: -4px;
 }
 .flashcard-phonics .silent-chunk {
-  opacity: 0.45;
-}
 .flashcard-speak-row {
   display: flex;
   gap: 10px;
   margin-top: 4px;
+}
+.flashcard-speed-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #e8ecf1;
+  width: 100%;
+  flex-wrap: wrap;
+}
+.flashcard-speed-row .speed-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-soft);
+}
+.flashcard-speed-row .hint-mode-buttons {
+  display: flex;
+  gap: 6px;
+}
+.flashcard-speed-row .btn-toggle {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 999px;
 }
 .blend-btn {
   background: #fff8e1;
