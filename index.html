@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>拼字冒險王</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦉</text></svg>">
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="mascot" class="mascot" aria-hidden="true">🦉</div>
+
+<div id="three-fx-layer" aria-hidden="true"></div>
+
+<main id="app">
+
+  <!-- 載入畫面 -->
+  <section id="view-loading" class="view">
+    <div class="loading-box">
+      <div class="loading-spinner">🦉</div>
+      <p>拼字冒險王準備中...</p>
+    </div>
+  </section>
+
+  <!-- 載入失敗畫面 -->
+  <section id="view-load-error" class="view" hidden>
+    <div class="panel">
+      <h2>糟糕，資料載入失敗了 😥</h2>
+      <p>請確認這個頁面是透過網頁伺服器（http/https）開啟，而不是直接用 <code>file://</code> 開啟本機檔案。</p>
+      <button class="btn btn-primary" id="btn-retry-load">再試一次</button>
+    </div>
+  </section>
+
+  <!-- 主選單 -->
+  <section id="view-splash" class="view" hidden>
+    <div class="panel splash-panel">
+      <h1 class="game-title">🌈 拼字冒險王 🌈</h1>
+      <p class="subtitle">跟著貓頭鷹博士一起學拼字！</p>
+      <div class="menu-buttons">
+        <button class="btn btn-primary btn-big" id="btn-start" disabled>▶️ 準備中...</button>
+        <button class="btn btn-secondary" id="btn-flashcards">📖 單字字卡</button>
+        <button class="btn btn-secondary" id="btn-blend">🎧 拼讀練習</button>
+        <button class="btn btn-secondary" id="btn-progress">⭐ 我的進度</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 選主題畫面 -->
+  <section id="view-theme-select" class="view" hidden>
+    <div class="panel">
+      <div class="view-header">
+        <button class="btn btn-back" data-nav="splash">← 返回</button>
+        <h2>選一個主題吧！</h2>
+      </div>
+      <div id="theme-grid" class="theme-grid"></div>
+    </div>
+  </section>
+
+  <!-- 選關卡畫面 -->
+  <section id="view-level-select" class="view" hidden>
+    <div class="panel">
+      <div class="view-header">
+        <button class="btn btn-back" data-nav="theme-select">← 返回</button>
+        <h2 id="level-select-title">選難度</h2>
+      </div>
+      <div id="level-grid" class="level-grid"></div>
+      <div class="hint-mode-picker">
+        <p>提示模式：</p>
+        <div class="hint-mode-buttons" id="hint-mode-buttons">
+          <button class="btn btn-toggle" data-hint-mode="image">🖼️ 圖片</button>
+          <button class="btn btn-toggle" data-hint-mode="audio">🔊 發音</button>
+          <button class="btn btn-toggle" data-hint-mode="both">🖼️🔊 兩者</button>
+        </div>
+      </div>
+      <div class="hint-mode-picker">
+        <p>音效：</p>
+        <div class="hint-mode-buttons" id="sound-toggle-buttons">
+          <button class="btn btn-toggle" data-sound-enabled="true">🔊 開啟</button>
+          <button class="btn btn-toggle" data-sound-enabled="false">🔇 關閉</button>
+        </div>
+      </div>
+      <div class="hint-mode-picker">
+        <p>發音速度：</p>
+        <div class="hint-mode-buttons" id="speech-rate-buttons">
+          <button class="btn btn-toggle" data-speech-rate="0.6">🐢 慢速</button>
+          <button class="btn btn-toggle" data-speech-rate="0.8">🚶 正常</button>
+          <button class="btn btn-toggle" data-speech-rate="1.1">🐇 快速</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 遊戲畫面 -->
+  <section id="view-game" class="view" hidden>
+    <div class="panel game-panel">
+      <div class="game-topbar">
+        <button class="btn btn-back" id="btn-leave-game">← 離開</button>
+        <div class="game-topbar-center">
+          <div class="game-progress" id="game-progress">第 1 / 8 題</div>
+          <button class="btn hint-btn" id="btn-hint" title="需要一個小提示嗎？（每題限用一次）">💡</button>
+        </div>
+        <div class="game-score" id="game-score">✅ 0</div>
+      </div>
+
+      <div class="prompt-area" id="prompt-area">
+        <div class="prompt-visual" id="prompt-visual"></div>
+        <div class="prompt-zh" id="prompt-zh" hidden></div>
+        <button class="btn speaker-btn" id="btn-speak" title="播放發音">🔊</button>
+      </div>
+
+      <div class="answer-slots" id="answer-slots"></div>
+
+      <div class="tile-area" id="tile-area"></div>
+
+      <p class="feedback-message" id="feedback-message"></p>
+
+      <button class="btn btn-primary btn-big" id="btn-next-question" hidden>▶️ 下一題</button>
+    </div>
+  </section>
+
+  <!-- 結果畫面 -->
+  <section id="view-result" class="view" hidden>
+    <div class="panel result-panel">
+      <h2 id="result-title">關卡完成！</h2>
+      <div class="result-stars" id="result-stars">⭐⭐⭐</div>
+      <p id="result-accuracy">答對率：100%</p>
+      <p id="result-message" class="result-message"></p>
+      <div class="menu-buttons">
+        <button class="btn btn-primary" id="btn-replay">🔁 再玩一次</button>
+        <button class="btn btn-secondary" id="btn-back-levels">選其他難度</button>
+        <button class="btn btn-back" data-nav="splash">回主選單</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 進度總覽畫面 -->
+  <section id="view-progress" class="view" hidden>
+    <div class="panel">
+      <div class="view-header">
+        <button class="btn btn-back" data-nav="splash">← 返回</button>
+        <h2>我的進度</h2>
+      </div>
+      <div id="progress-table" class="progress-table"></div>
+
+      <h3 class="collectibles-title">🎟️ 貼紙收藏</h3>
+      <p class="collectibles-hint">每個關卡首次拿到 3 顆星，就能開寶箱獲得一張主題貼紙</p>
+      <div id="collectibles-grid" class="collectibles-grid"></div>
+
+      <div class="progress-io">
+        <button class="btn btn-secondary" id="btn-export">💾 匯出進度</button>
+        <button class="btn btn-secondary" id="btn-import">📂 匯入進度</button>
+        <input type="file" id="import-file-input" accept="application/json" hidden>
+      </div>
+      <div class="diagnostics-row">
+        <button class="btn btn-secondary" id="btn-check-threefx">🔍 檢查 3D 特效狀態</button>
+        <span id="threefx-status-text" class="threefx-status"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 字卡瀏覽畫面：從選難度畫面進入時鎖定該主題+難度；從主選單進入時涵蓋整個主題 -->
+  <section id="view-flashcards" class="view" hidden>
+    <div class="panel flashcard-panel">
+      <div class="view-header">
+        <button class="btn btn-back" id="btn-flashcard-back">← 返回</button>
+        <h2>單字字卡</h2>
+      </div>
+
+      <div class="flashcard-position" id="flashcard-position">1 / 10</div>
+
+      <div class="flashcard-card">
+        <div class="flashcard-visual" id="flashcard-visual"></div>
+        <div class="flashcard-word" id="flashcard-word">word</div>
+        <div class="flashcard-syllables" id="flashcard-syllables" hidden></div>
+        <div class="flashcard-phonics" id="flashcard-phonics" hidden></div>
+        <div class="flashcard-speak-row">
+          <button class="btn speaker-btn" id="btn-flashcard-speak" title="播放發音">🔊</button>
+          <button class="btn speaker-btn blend-btn" id="btn-flashcard-blend" title="聽逐音拼讀">🔤</button>
+        </div>
+      </div>
+
+      <div class="flashcard-nav">
+        <button class="btn btn-secondary" id="btn-flashcard-prev">◀ 上一個</button>
+        <button class="btn btn-secondary" id="btn-flashcard-next">下一個 ▶</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 拼讀練習畫面：不計分、不記錄進度，無限隨機練習，聽拼讀音選出正確單字 -->
+  <section id="view-blend" class="view" hidden>
+    <div class="panel blend-panel">
+      <div class="view-header">
+        <button class="btn btn-back" id="btn-blend-back">← 返回</button>
+        <h2>拼讀練習</h2>
+      </div>
+
+      <p class="blend-instruction">聽聽看，這是哪個字？</p>
+      <button class="btn speaker-btn" id="btn-blend-replay">🔊 再聽一次</button>
+
+      <div class="blend-choices" id="blend-choices"></div>
+
+      <p class="feedback-message" id="blend-feedback"></p>
+    </div>
+  </section>
+
+</main>
+
+<div id="toast" class="toast" hidden></div>
+
+<!-- 首次三星過關開寶箱後彈出的貼紙揭曉視窗 -->
+<div id="sticker-modal" class="sticker-modal" hidden>
+  <div class="sticker-modal-card">
+    <p class="sticker-modal-title">🎉 獲得新貼紙！</p>
+    <div class="sticker-modal-icon" id="sticker-icon">🐾</div>
+    <p class="sticker-modal-name" id="sticker-name">動物 · 初級</p>
+    <button class="btn btn-primary" id="sticker-modal-close">太棒了！</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script type="module" src="three-fx.js"></script>
+</body>
+</html>
