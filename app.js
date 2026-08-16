@@ -1051,7 +1051,6 @@
     $('btn-flashcard-next').disabled = flashcardsState.index === flashcardsState.words.length - 1;
     $('btn-flashcard-speak').style.display = 'inline-block';
     $('btn-flashcard-blend').style.display = 'inline-block';
-    renderHintModeButtons();
 
     preloadEntryAudio(entry);
     if (flashcardsState.words[flashcardsState.index + 1]) {
@@ -1154,7 +1153,7 @@
     document.querySelectorAll('#sound-toggle-buttons .btn-toggle').forEach(function (b) {
       b.classList.toggle('active', (b.dataset.soundEnabled === 'true') === progress.settings.soundEnabled);
     });
-    document.querySelectorAll('#speech-rate-buttons .btn-toggle, #flashcard-speech-rate-buttons .btn-toggle').forEach(function (b) {
+    document.querySelectorAll('#speech-rate-buttons .btn-toggle').forEach(function (b) {
       b.classList.toggle('active', parseFloat(b.dataset.speechRate) === progress.settings.speechRate);
     });
   }
@@ -1353,17 +1352,6 @@
       saveProgress();
       renderHintModeButtons();
       speakWord(gameState ? gameState.currentWord : 'hello'); // 立即試聽，讓孩子聽出速度差異
-    });
-
-    $('flashcard-speech-rate-buttons').addEventListener('click', function (e) {
-      var btn = e.target.closest('.btn-toggle');
-      if (!btn) return;
-      progress.settings.speechRate = parseFloat(btn.dataset.speechRate);
-      saveProgress();
-      renderHintModeButtons();
-      if (flashcardsState && flashcardsState.words && flashcardsState.words[flashcardsState.index]) {
-        speakWord(flashcardsState.words[flashcardsState.index].word);
-      }
     });
 
     $('btn-replay').addEventListener('click', function () { startLevel(currentThemeId, currentTier); });
