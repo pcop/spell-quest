@@ -60,7 +60,7 @@ All word content lives in `data.json`; no code changes needed to add words. Exam
 
 **Two distinct phonetic datasets, don't conflate them**: `syllables` (syllable/beat grouping, drives visual slot spacing) vs `phonics.chunks` (letter-group-to-sound breakdown, drives the 🔤 phonics playback). A word can have one, both, or neither.
 
-**Phonics audio pipeline**: previously used a browser-TTS "fake spelling" hack (e.g. feeding `th` as `"thh"`) that unreliably got spelled out letter-by-letter by some engines. Now uses pre-generated `espeak-ng` phoneme-code audio (`[[...]]` IPA-like syntax, not guessed spelling) played back via `Audio` elements chained through `ended`/`error` events (not `speechSynthesis`'s built-in queue). Whole-word pronunciation (`speakWord()`) is unaffected and still uses browser `SpeechSynthesis`.
+**Phonics & Words audio pipeline**: Uses pre-generated Microsoft Edge Neural Voice (`en-US-JennyNeural`) audio for all word pronunciations (`words-audio/*.mp3`) and 53 phonics chunks (`phonics-audio/*.mp3`). Both whole-word (`speakWord()`) and chunk breakdown (`speakPhonics()`) use `Audio` elements with dynamic preloading, `playbackRate` speed adjustment, and fallback to browser `SpeechSynthesis` if an audio asset fails to load.
 
 **three.js is a hard requirement for the spelling levels only**, not a decorative enhancement — if the CDN is unreachable or WebGL is unsupported, the main menu's "Start Game" button is permanently disabled with an explanatory `title`. Flashcards, blend practice, and the progress page do not depend on it and remain fully usable regardless. Detection (`setupThreeFxDetection` in `app.js`) listens for `threefx-ready`/`threefx-error` events registered synchronously *before* `three-fx.js` (a `type="module"` script, which behaves like `defer`) can execute — registering the listener inside `DOMContentLoaded` was a previously-fixed race condition where the module script could fire its event before `DOMContentLoaded`, and listeners were never registering in time. Diagnostic: the progress page's "🔍 檢查 3D 特效狀態" only checks whether `window.ThreeFX` exists, not whether models actually render — treat visual confirmation, not the status text, as the source of truth.
 
@@ -86,6 +86,6 @@ Import/export (on the progress page) round-trips this whole object as JSON; impo
 
 ## Browser compatibility constraints
 
-- Speech relies on native `SpeechSynthesis`; if no English voice is installed, speaker/auto-speak UI auto-hides (rest of the app unaffected).
+- High-quality neural speech audio works across all modern browsers and devices (served statically via `words-audio/` and `phonics-audio/`); if assets fail to load, falls back to native `SpeechSynthesis`.
 - Mobile requires a first tap on "Start Game" to unlock audio/speech playback (browser autoplay policy) — this is `unlockAudio()` in `app.js`.
 - 3D effects require `<script type="importmap">` support (Chrome/Edge 89+, Safari 16.4+, Firefox 108+) and WebGL.

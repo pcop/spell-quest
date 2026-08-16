@@ -354,6 +354,11 @@
     $('game-progress').textContent = '第 ' + (gameState.currentIndex + 1) + ' / ' + gameState.words.length + ' 題';
     $('game-score').textContent = '✅ ' + gameState.correctCount;
 
+    preloadEntryAudio(entry);
+    if (gameState.words[gameState.currentIndex + 1]) {
+      preloadEntryAudio(gameState.words[gameState.currentIndex + 1]);
+    }
+
     renderPrompt(entry);
     renderAnswerSlots();
     renderTiles();
@@ -392,7 +397,7 @@
       zhEl.textContent = '';
       zhEl.hidden = true;
     }
-    $('btn-speak').style.display = cachedEnglishVoice ? 'inline-block' : 'none';
+    $('btn-speak').style.display = 'inline-block';
   }
 
   function renderAnswerSlots() {
@@ -690,7 +695,31 @@
     }
   }
 
-  // ---------- Speech synthesis ----------
+  // ---------- 音訊快取與預載入 ----------
+  var preloadedAudioMap = {};
+  function preloadAudio(url) {
+    if (!url || preloadedAudioMap[url]) return;
+    var audio = new Audio();
+    audio.preload = 'auto';
+    audio.src = url;
+    preloadedAudioMap[url] = audio;
+  }
+
+  function preloadEntryAudio(entry) {
+    if (!entry) return;
+    if (entry.word) {
+      preloadAudio('words-audio/' + encodeURIComponent(entry.word.toLowerCase()) + '.mp3');
+    }
+    if (entry.phonics && entry.phonics.chunks) {
+      entry.phonics.chunks.forEach(function (chunk) {
+        preloadAudio('phonics-audio/' + encodeURIComponent(chunk) + '.mp3');
+      });
+    }
+  }
+
+  // ---------- 真人神經語音與語音合成 ----------
+  var wordAudioEl = null;
+
   function initVoices() {
     if (!('speechSynthesis' in window)) return;
     var pick = function () {
@@ -701,43 +730,79 @@
     speechSynthesis.addEventListener('voiceschanged', pick);
   }
 
-  function speakWord(word) {
-    if (!('speechSynthesis' in window) || !cachedEnglishVoice) return;
-    speechSynthesis.cancel();
-    var utter = new SpeechSynthesisUtterance(word);
-    utter.voice = cachedEnglishVoice;
-    utter.lang = cachedEnglishVoice.lang;
-    utter.rate = progress.settings.speechRate;
-    speechSynthesis.speak(utter);
+  function speakWord(word, onEnded) {
+    if (!word) {
+      if (onEnded) onEnded();
+      return;
+    }
+    var normalizedWord = word.trim().toLowerCase();
+    var rate = progress.settings.speechRate || 1.0;
+
+    if (!wordAudioEl) wordAudioEl = new Audio();
+    wordAudioEl.playbackRate = rate;
+
+    // 清理舊的監聽器
+    wordAudioEl.onended = null;
+    wordAudioEl.onerror = null;
+
+    var audioSrc = 'words-audio/' + encodeURIComponent(normalizedWord) + '.mp3';
+
+    var fallbackToTTS = function () {
+      if (!('speechSynthesis' in window)) {
+        if (onEnded) onEnded();
+        return;
+      }
+      try {
+        speechSynthesis.cancel();
+        var utter = new SpeechSynthesisUtterance(word);
+        if (cachedEnglishVoice) {
+          utter.voice = cachedEnglishVoice;
+          utter.lang = cachedEnglishVoice.lang;
+        }
+        utter.rate = rate;
+        if (onEnded) {
+          utter.onend = onEnded;
+          utter.onerror = onEnded;
+        }
+        speechSynthesis.speak(utter);
+      } catch (err) {
+        if (onEnded) onEnded();
+      }
+    };
+
+    wordAudioEl.src = audioSrc;
+    wordAudioEl.onended = function () {
+      if (onEnded) onEnded();
+    };
+    wordAudioEl.onerror = function () {
+      fallbackToTTS();
+    };
+
+    var playPromise = wordAudioEl.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise.catch(function () {
+        fallbackToTTS();
+      });
+    }
   }
 
   // 每次呼叫 speakPhonics() 就發一個新的序號；播放序列裡每一步都檢查序號還是不是
-  // 當下最新的一次，不是的話就直接停止——這是 Audio 版本的「取消前一次播放」機制，
-  // 取代原本 speechSynthesis.cancel() 能做到的事（Audio 物件之間沒有內建的取消/佇列）。
+  // 當下最新的一次，不是的話就直接停止——這是 Audio 版本的「取消前一次播放」機制。
   var phonicsPlaybackId = 0;
-
-  // 重用同一個 Audio 元素、每段只換 src，不要每段都 new Audio()：第一段是在
-  // 使用者點擊的呼叫堆疊裡播放的，第二段以後是在前一段的 ended 事件回呼裡才
-  // 建立，如果每段都是全新的 Audio 物件，iOS Safari 這類會對「不在使用者手勢
-  // 呼叫堆疊內建立的 Audio 物件」個別套用自動播放限制的瀏覽器，可能只有第一段
-  // 聲音出得來、後面幾段全部靜音卡住。重用同一個元素可以整段序列都算同一次播放。
   var phonicsAudioEl = null;
   var phonicsAudioStepHandler = null;
 
-  // 依序播放單字的自然發音拆解（預先用 espeak-ng 以音素代碼精準生成的音檔，
-  // 不是瀏覽器 TTS 用假拼字用猜的），最後再唸一次完整單字（沿用 speakWord()，
-  // 這段還是走瀏覽器 TTS，維持使用者設定的語速）。
-  // Audio 元素之間沒有像 speechSynthesis.speak() 那樣的內建跨物件佇列，用
-  // ended/error 事件手動串接下一段；error（例如音檔載入失敗）也要接著播下一段，
-  // 不能讓單一音檔壞掉卡住整個序列。
+  // 依序播放單字的自然發音拆解（高品質神經網路真人發音），最後再播放完整單字真人發音
   function speakPhonics(entry) {
     var phonics = entry.phonics;
     if (!phonics || !phonics.chunks || phonics.chunks.length === 0) { speakWord(entry.word); return; }
     if ('speechSynthesis' in window) speechSynthesis.cancel();
+    if (wordAudioEl) {
+      wordAudioEl.pause();
+      wordAudioEl.currentTime = 0;
+    }
     var myPlaybackId = ++phonicsPlaybackId;
     if (!phonicsAudioEl) phonicsAudioEl = new Audio();
-    // 清掉前一次（可能還沒播完就被這次新呼叫取消掉的）序列殘留的監聽器，
-    // 避免監聽器越疊越多，也避免舊序列的殘留回呼在奇怪的時間點又被觸發一次。
     if (phonicsAudioStepHandler) {
       phonicsAudioEl.removeEventListener('ended', phonicsAudioStepHandler);
       phonicsAudioEl.removeEventListener('error', phonicsAudioStepHandler);
@@ -747,11 +812,12 @@
       return !(phonics.silent && phonics.silent.indexOf(i) !== -1);
     });
     var idx = 0;
+    var rate = progress.settings.speechRate || 1.0;
+    phonicsAudioEl.playbackRate = rate;
+
     function playNext() {
       if (myPlaybackId !== phonicsPlaybackId) return;
       if (idx >= chunks.length) { speakWord(entry.word); return; }
-      // 同一段播放失敗時，'error' 事件跟 play() 回傳的 rejected promise 常常
-      // 兩個都會觸發，用 advanced 旗標確保只前進一步，不會一次跳兩段 chunk。
       var advanced = false;
       var step = function () {
         if (advanced) return;
@@ -762,7 +828,8 @@
         playNext();
       };
       phonicsAudioStepHandler = step;
-      phonicsAudioEl.src = 'phonics-audio/' + chunks[idx] + '.mp3';
+      phonicsAudioEl.src = 'phonics-audio/' + encodeURIComponent(chunks[idx]) + '.mp3';
+      phonicsAudioEl.playbackRate = rate;
       idx++;
       phonicsAudioEl.addEventListener('ended', step);
       phonicsAudioEl.addEventListener('error', step);
@@ -778,16 +845,28 @@
       try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (err) {}
     }
     initAudioContext();
-    // 在使用者手勢裡先「碰」一下自然發音共用的 Audio 元素，讓它在 iOS Safari 這類
-    // 會限制「不是在使用者手勢呼叫堆疊裡觸發的 play()」的瀏覽器上先解鎖。不然
-    // 要等孩子剛好在手勢堆疊裡點到 🔤 按鈕才會第一次解鎖，拼讀練習答對後從
-    // setTimeout 自動換題那次呼叫（不在手勢堆疊裡）就可能因為還沒解鎖而靜音。
+
+    if (!wordAudioEl) wordAudioEl = new Audio();
     if (!phonicsAudioEl) phonicsAudioEl = new Audio();
+
+    wordAudioEl.muted = true;
+    wordAudioEl.src = 'words-audio/cat.mp3';
+    var p1 = wordAudioEl.play();
+    if (p1 && typeof p1.then === 'function') {
+      p1.then(function () {
+        wordAudioEl.pause();
+        wordAudioEl.currentTime = 0;
+        wordAudioEl.muted = false;
+      }).catch(function () { wordAudioEl.muted = false; });
+    } else {
+      wordAudioEl.muted = false;
+    }
+
     phonicsAudioEl.muted = true;
-    phonicsAudioEl.src = 'phonics-audio/th.mp3';
-    var unlockPromise = phonicsAudioEl.play();
-    if (unlockPromise && typeof unlockPromise.then === 'function') {
-      unlockPromise.then(function () {
+    phonicsAudioEl.src = 'phonics-audio/a.mp3';
+    var p2 = phonicsAudioEl.play();
+    if (p2 && typeof p2.then === 'function') {
+      p2.then(function () {
         phonicsAudioEl.pause();
         phonicsAudioEl.currentTime = 0;
         phonicsAudioEl.muted = false;
@@ -970,11 +1049,14 @@
     $('flashcard-position').textContent = (flashcardsState.index + 1) + ' / ' + flashcardsState.words.length;
     $('btn-flashcard-prev').disabled = flashcardsState.index === 0;
     $('btn-flashcard-next').disabled = flashcardsState.index === flashcardsState.words.length - 1;
-    $('btn-flashcard-speak').style.display = cachedEnglishVoice ? 'inline-block' : 'none';
-    // 🔤 逐音拼讀改播預先生成的音檔後不再依賴瀏覽器 SpeechSynthesis 語音，
-    // 就算裝置沒有英文語音（cachedEnglishVoice 是 null）也能正常播放音素音檔，
-    // 只有結尾唸完整單字那段會因為 speakWord() 內部的判斷而靜默跳過，不用整顆按鈕都藏起來。
+    $('btn-flashcard-speak').style.display = 'inline-block';
     $('btn-flashcard-blend').style.display = 'inline-block';
+
+    preloadEntryAudio(entry);
+    if (flashcardsState.words[flashcardsState.index + 1]) {
+      preloadEntryAudio(flashcardsState.words[flashcardsState.index + 1]);
+    }
+
     // 快速連按上一個/下一個時要 debounce，不然連續呼叫 speakWord 在部分瀏覽器
     // （尤其 iOS Safari）會排隊卡住、唸出一堆斷斷續續的半音節。只在孩子停下來的那張卡唸。
     clearTimeout(flashcardSpeakTimer);
@@ -1005,6 +1087,7 @@
     var msg = $('blend-feedback');
     msg.textContent = '';
     msg.className = 'feedback-message';
+    preloadEntryAudio(target);
     renderBlendChoices();
     speakPhonics(target);
   }
