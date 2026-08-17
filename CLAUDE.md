@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Running it
 
-Must be served over HTTP — `data.json` is loaded via `fetch`, which fails under `file://`. Opening `index.html` directly will not work.
+Must be served over HTTP — `data.json`/`messages.json` are loaded via `fetch`, which fails under `file://`. Opening `index.html` directly will not work.
 
 ```bash
 python3 -m http.server 8000
@@ -24,6 +24,7 @@ There is no build/lint/test tooling. The only verification done so far is `node 
 - `index.html` — view skeleton (`<section id="view-*">` containers for each screen: loading, load-error, splash, theme-select, level-select, game, result, progress, flashcards, blend), plus the three.js importmap.
 - `styles.css` — color system, animations, responsive/touch styles.
 - `data.json` — the entire word bank + theme list + difficulty tier rules (see "Content model" below).
+- `messages.json` — all UI copy text: `praise` (correct-answer bubble), `encourage` (wrong-answer bubble), `result` (level-complete blurb, keyed by star count `"3"`/`"2"`/`"1"`/`"0"`), `mascotIdle` (mascot's random idle head-tilt speech bubble during gameplay). Purely arrays of strings (or object-of-arrays for `result`) — edit and reload, no code changes needed. Loaded via `fetch` alongside `data.json` in `loadGameData()`; a missing/malformed file fails the same way `data.json` does (goes to `load-error` view).
 - `app.js` — all game logic: data loading, view switching, question generation, scoring, speech, progress persistence, phonics breakdown, blend-practice mode. Single IIFE, organized into clearly commented sections (`// ---------- Section ----------`) — grep those to navigate rather than reading top to bottom.
 - `three-fx.js` — 3D celebration layer (ES module). Exposes `window.ThreeFX` only if CDN load + WebGL init both succeed; otherwise the global is simply never set (no error thrown), and `app.js` gates on its presence.
 - `words-audio/*.mp3` — pre-generated whole-word audio clips (filename = word text, e.g. `cat.mp3`), produced by `tools/generate-neural-audio.py`.

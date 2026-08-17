@@ -6,14 +6,11 @@
   var MIN_WORDS_PER_LEVEL = 3; // 少於這個題數的關卡不開放（例如顏色初級只有 red 一個字），避免一玩就結束
   var VIEWS = ['loading', 'load-error', 'splash', 'theme-select', 'level-select', 'game', 'result', 'progress', 'flashcards', 'blend'];
 
-  var PRAISE_MESSAGES = ['太棒了！', '你好厲害！', '答對囉，繼續加油！', 'Super！', '你是拼字小天才！'];
-  var ENCOURAGE_MESSAGES = ['再試一次，你可以的！', '快拼好了，加油！', '沒關係，再排排看！', '慢慢來，你做得到！'];
-  var RESULT_MESSAGES = {
-    3: ['太完美了！你是拼字大師！', '全部答對，超級厲害！', '滿分過關，你根本是天才！', '無敵！這關被你征服了！'],
-    2: ['表現很棒，再接再厲！', '很不錯喔，快到滿分了！', '超讚的表現，繼續保持！'],
-    1: ['有進步了，再多練習一下！', '繼續加油，你會更棒！', '一步一步來，你做得到！'],
-    0: ['沒關係，再挑戰一次吧！', '多練習幾次就會更熟悉囉！', '別氣餒，下一輪會更順！']
-  };
+  // 文案內容（鼓勵語、結算評語等）都在 messages.json，方便不動程式碼直接調整文字；
+  // 下面這幾個變數是 loadGameData() 從該檔載入後才會被填值，起始值只是型別預留。
+  var PRAISE_MESSAGES = [];
+  var ENCOURAGE_MESSAGES = [];
+  var RESULT_MESSAGES = {};
 
   // 吉祥物角色：柯南角色群 Q 版頭像
   // 圖檔實際內容在 mascot-images/<id>.png，換角色美術只需覆蓋同檔名的檔案，不需要改這裡
@@ -23,7 +20,7 @@
     { id: 'ran', name: '小蘭' },
     { id: 'amuro', name: '零' }
   ];
-  var MASCOT_IDLE_MESSAGES = ['你今天也很棒喔！', '加油，我陪你一起拼字！', '你可以的，慢慢來！', '拼字高手就是你！', '休息一下也沒關係唷！'];
+  var MASCOT_IDLE_MESSAGES = [];
 
   // ---------- Module state ----------
   var WORD_BANK = [], THEMES = [], DIFFICULTY_TIERS = [];
@@ -125,17 +122,26 @@
   }
 
   // ---------- Data loading ----------
+  function fetchJson(url) {
+    return fetch(url).then(function (res) {
+      if (!res.ok) throw new Error(url + ' HTTP ' + res.status);
+      return res.json();
+    });
+  }
+
   function loadGameData() {
     showView('loading');
-    fetch('data.json')
-      .then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.json();
-      })
-      .then(function (data) {
+    Promise.all([fetchJson('data.json'), fetchJson('messages.json')])
+      .then(function (results) {
+        var data = results[0];
+        var messages = results[1];
         WORD_BANK = data.wordBank;
         THEMES = data.themes;
         DIFFICULTY_TIERS = data.difficultyTiers;
+        PRAISE_MESSAGES = messages.praise;
+        ENCOURAGE_MESSAGES = messages.encourage;
+        RESULT_MESSAGES = messages.result;
+        MASCOT_IDLE_MESSAGES = messages.mascotIdle;
         progress = loadProgress();
         initVoices();
         showView('splash');
