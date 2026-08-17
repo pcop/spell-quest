@@ -28,6 +28,7 @@ There is no build/lint/test tooling. The only verification done so far is `node 
 - `three-fx.js` — 3D celebration layer (ES module). Exposes `window.ThreeFX` only if CDN load + WebGL init both succeed; otherwise the global is simply never set (no error thrown), and `app.js` gates on its presence.
 - `words-audio/*.mp3` — pre-generated whole-word audio clips (filename = word text, e.g. `cat.mp3`), produced by `tools/generate-neural-audio.py`.
 - `phonics-audio/*.mp3` — pre-generated phoneme audio clips (filename = chunk text, e.g. `th.mp3`), produced by `tools/generate-neural-audio.py`.
+- `mascot-images/*.svg` — mascot character portraits (filename = character id, e.g. `conan.svg`), referenced by id from `MASCOT_CHARACTERS` in `app.js` and loaded via `<img src="mascot-images/<id>.svg">` in `setMascotCharacter()`. Swapping a character's art is just overwriting the file at the same filename — no code change needed.
 - `tools/generate-neural-audio.py` — regenerates both `words-audio/` and `phonics-audio/` via Microsoft Edge-TTS (`en-US-JennyNeural`) + `ffmpeg`. Word clips are the TTS reading of the word itself, silence-trimmed and loudness-normalized. Phonics chunks are carved out of a carrier word's TTS reading via hardcoded `start`/`end` trim seconds in the script's `CHUNK_CONFIG` table (e.g. chunk `th` is sliced from `think`) — re-run this whenever a new word introduces a phonics chunk not already in `CHUNK_CONFIG`, or needs its own word-level clip.
 
 ## Content model (editing words/themes)

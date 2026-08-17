@@ -15,12 +15,24 @@
     0: ['沒關係，再挑戰一次吧！', '多練習幾次就會更熟悉囉！', '別氣餒，下一輪會更順！']
   };
 
+  // 吉祥物角色：原創簡化 Q 版頭像（非官方美術素材），僅用髮型/髮色/配件區分特徵
+  // 圖檔實際內容在 mascot-images/<id>.svg，換角色美術只需覆蓋同檔名的檔案，不需要改這裡
+  var MASCOT_CHARACTERS = [
+    { id: 'conan', name: '柯南' },
+    { id: 'haibara', name: '灰原哀' },
+    { id: 'ran', name: '小蘭' },
+    { id: 'amuro', name: '零' }
+  ];
+  var MASCOT_IDLE_MESSAGES = ['你今天也很棒喔！', '加油，我陪你一起拼字！', '你可以的，慢慢來！', '拼字高手就是你！', '休息一下也沒關係唷！'];
+
   // ---------- Module state ----------
   var WORD_BANK = [], THEMES = [], DIFFICULTY_TIERS = [];
   var progress = null;
   var gameState = null;
   var currentThemeId = null;
   var currentTier = null;
+  var currentMascotId = null;
+  var mascotBubbleTimer = null;
   var cachedEnglishVoice = null;
   var audioCtx = null;
   var audioUnlocked = false;
@@ -58,12 +70,59 @@
     mascotReact(Math.random() < 0.5 ? 'happy' : 'wiggle');
   }
 
-  // 動畫結束後移回待機狀態，避免 mascot 卡在 happy/wiggle/cheer 姿勢不再回到 idleBob
+  // 動畫結束後移回待機狀態，避免 mascot 卡在 happy/wiggle/cheer/tilt 姿勢不再回到 idleBob
   $('mascot') && $('mascot').addEventListener('animationend', function (e) {
     if (e.animationName === 'happyJump' || e.animationName === 'wiggle' || e.animationName === 'cheer') {
       e.target.classList.remove('happy', 'wiggle', 'cheer');
+    } else if (e.animationName === 'tiltLeft' || e.animationName === 'tiltRight') {
+      e.target.classList.remove('tilt-left', 'tilt-right');
     }
   });
+
+  function setMascotCharacter(id) {
+    var character = MASCOT_CHARACTERS.find(function (c) { return c.id === id; }) || MASCOT_CHARACTERS[0];
+    currentMascotId = character.id;
+    var mascot = $('mascot');
+    if (!mascot) return;
+    mascot.innerHTML = '<img src="mascot-images/' + character.id + '.svg" alt="' + character.name + '">';
+    mascot.setAttribute('aria-label', character.name);
+  }
+
+  // 排除目前角色再隨機挑一位，確保每次呼叫都會換人，而不是有機率選到同一位
+  function pickRandomMascot() {
+    var pool = MASCOT_CHARACTERS.filter(function (c) { return c.id !== currentMascotId; });
+    if (!pool.length) pool = MASCOT_CHARACTERS;
+    setMascotCharacter(pool[Math.floor(Math.random() * pool.length)].id);
+  }
+
+  function showMascotBubble(text) {
+    var bubble = $('mascot-bubble');
+    if (!bubble) return;
+    bubble.textContent = text;
+    bubble.hidden = false;
+    clearTimeout(mascotBubbleTimer);
+    mascotBubbleTimer = setTimeout(function () { bubble.hidden = true; }, 2600);
+  }
+
+  // 待機時的隨機歪頭 + 鼓勵泡泡；若吉祥物正在播答對/過關動畫就跳過，避免動畫互相打架
+  function mascotIdleTilt() {
+    var mascot = $('mascot');
+    if (!mascot) return;
+    if (mascot.classList.contains('happy') || mascot.classList.contains('wiggle') || mascot.classList.contains('cheer')) return;
+    mascot.classList.remove('tilt-left', 'tilt-right');
+    void mascot.offsetWidth;
+    mascot.classList.add(Math.random() < 0.5 ? 'tilt-left' : 'tilt-right');
+    showMascotBubble(MASCOT_IDLE_MESSAGES[Math.floor(Math.random() * MASCOT_IDLE_MESSAGES.length)]);
+  }
+
+  // 用遞迴 setTimeout（而非 setInterval）做出每次間隔都不同的「隨機」待機節奏
+  function scheduleMascotIdleTilt() {
+    var delay = 6000 + Math.random() * 6000;
+    setTimeout(function () {
+      mascotIdleTilt();
+      scheduleMascotIdleTilt();
+    }, delay);
+  }
 
   // ---------- Data loading ----------
   function loadGameData() {
@@ -316,6 +375,7 @@
   function startLevel(themeId, tier) {
     clearPendingGameTimers();
     cancelResultCelebration();
+    pickRandomMascot();
     currentThemeId = themeId;
     currentTier = tier;
     var def = getLevelDefsForTheme(themeId).find(function (d) { return d.tier === tier; });
@@ -1508,5 +1568,7 @@
     bindStaticEvents();
     loadGameData();
     setupThreeFxDetection();
+    pickRandomMascot();
+    scheduleMascotIdleTilt();
   });
 })();
