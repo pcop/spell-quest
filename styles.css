@@ -635,6 +635,7 @@ body {
 .mascot.cheer { animation: cheer 0.6s ease; }
 .mascot.tilt-left { animation: tiltLeft 1s ease; }
 .mascot.tilt-right { animation: tiltRight 1s ease; }
+.mascot.pulse { animation: idlePulse 0.8s ease; }
 
 .mascot-bubble {
   max-width: 160px;
@@ -749,6 +750,10 @@ body {
 @keyframes tiltRight {
   0%, 100% { transform: rotate(0deg); }
   50% { transform: rotate(14deg); }
+}
+@keyframes idlePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
 }
 @keyframes starPop {
   0% { opacity: 0; transform: scale(0.2) rotate(-30deg); }

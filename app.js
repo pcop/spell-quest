@@ -71,8 +71,8 @@
   $('mascot') && $('mascot').addEventListener('animationend', function (e) {
     if (e.animationName === 'happyJump' || e.animationName === 'wiggle' || e.animationName === 'cheer') {
       e.target.classList.remove('happy', 'wiggle', 'cheer');
-    } else if (e.animationName === 'tiltLeft' || e.animationName === 'tiltRight') {
-      e.target.classList.remove('tilt-left', 'tilt-right');
+    } else if (e.animationName === 'tiltLeft' || e.animationName === 'tiltRight' || e.animationName === 'idlePulse') {
+      e.target.classList.remove('tilt-left', 'tilt-right', 'pulse');
     }
   });
 
@@ -101,14 +101,20 @@
     mascotBubbleTimer = setTimeout(function () { bubble.hidden = true; }, 2600);
   }
 
-  // 待機時的隨機歪頭 + 鼓勵泡泡；若吉祥物正在播答對/過關動畫就跳過，避免動畫互相打架
+  // 待機時的隨機歪頭（或偶爾放大一下）+ 鼓勵泡泡；若吉祥物正在播答對/過關動畫就跳過，避免動畫互相打架
   function mascotIdleTilt() {
     var mascot = $('mascot');
     if (!mascot) return;
     if (mascot.classList.contains('happy') || mascot.classList.contains('wiggle') || mascot.classList.contains('cheer')) return;
-    mascot.classList.remove('tilt-left', 'tilt-right');
+    mascot.classList.remove('tilt-left', 'tilt-right', 'pulse');
     void mascot.offsetWidth;
-    mascot.classList.add(Math.random() < 0.5 ? 'tilt-left' : 'tilt-right');
+    var roll = Math.random();
+    // 8 成機率歪頭（左右各半），2 成機率改成放大一下，增加待機動作的變化
+    if (roll < 0.2) {
+      mascot.classList.add('pulse');
+    } else {
+      mascot.classList.add(roll < 0.6 ? 'tilt-left' : 'tilt-right');
+    }
     showMascotBubble(MASCOT_IDLE_MESSAGES[Math.floor(Math.random() * MASCOT_IDLE_MESSAGES.length)]);
   }
 
