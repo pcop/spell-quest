@@ -15,8 +15,8 @@
     0: ['沒關係，再挑戰一次吧！', '多練習幾次就會更熟悉囉！', '別氣餒，下一輪會更順！']
   };
 
-  // 吉祥物角色：原創簡化 Q 版頭像（非官方美術素材），僅用髮型/髮色/配件區分特徵
-  // 圖檔實際內容在 mascot-images/<id>.svg，換角色美術只需覆蓋同檔名的檔案，不需要改這裡
+  // 吉祥物角色：柯南角色群 Q 版頭像
+  // 圖檔實際內容在 mascot-images/<id>.png，換角色美術只需覆蓋同檔名的檔案，不需要改這裡
   var MASCOT_CHARACTERS = [
     { id: 'conan', name: '柯南' },
     { id: 'haibara', name: '灰原哀' },
@@ -84,7 +84,7 @@
     currentMascotId = character.id;
     var mascot = $('mascot');
     if (!mascot) return;
-    mascot.innerHTML = '<img src="mascot-images/' + character.id + '.svg" alt="' + character.name + '">';
+    mascot.innerHTML = '<img src="mascot-images/' + character.id + '.png" alt="' + character.name + '">';
     mascot.setAttribute('aria-label', character.name);
   }
 
